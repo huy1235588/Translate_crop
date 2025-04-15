@@ -3,11 +3,17 @@
 #include <leptonica/allheaders.h> // Leptonica để đọc hình ảnh
 #include <iostream>
 #include <string>
+#include <filesystem> // C++17 để làm việc với đường dẫn tệp
 #include <stdexcept>
 #include <windows.h> // Cho WideCharToMultiByte và MultiByteToWideChar
 
-// Biến đường dẫn đến thư mục tessdata
-const std::string TESSDATA_PATH = "D:\\Program Files\\MSYS2\\mingw64\\share\\tessdata";
+// Hàm để lấy đường dẫn thư mục chứa file exe
+std::string getExecutableDir() {
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    return std::filesystem::path(path).parent_path().string();
+}
+
 
 // Hàm trợ giúp để chuyển std::wstring sang chuỗi UTF-8 std::string
 std::string WstringToUtf8(const std::wstring &wstr)
@@ -62,12 +68,16 @@ std::wstring ReadTextFromImage(const std::wstring &imagePath)
         return L""; // Trả về chuỗi rỗng khi có lỗi
     }
 
+    // Đường dẫn tới thư mục chứa tệp tessdata
+    std::string executableDir = getExecutableDir();
+    std::string tessdataDir = executableDir + "\\tessdata"; // Đường dẫn tới thư mục tessdata
+
     // Khởi tạo Tesseract API
     // Tham số đầu tiên là đường dẫn tới thư mục tessdata.
     // Tham số thứ hai là mã ngôn ngữ (ví dụ: "eng" cho tiếng Anh, "vie" cho tiếng Việt).
     tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
     // Sử dụng "vie" cho tiếng Việt, "eng" cho tiếng Anh, hoặc "vie+eng" cho cả hai
-    if (api->Init(TESSDATA_PATH.c_str(), "vie+eng"))
+    if (api->Init(tessdataDir.c_str(), "vie+eng"))
     {
         std::wcerr << L"Lỗi: Không thể khởi tạo Tesseract." << std::endl;
         pixDestroy(&image);
