@@ -10,6 +10,8 @@ const std::wstring CROPPED_IMAGE_FILENAME = L"captured_region.png";
 // Hàm callback được gọi khi hotkey được nhấn
 void OnHotkeyPressed()
 {
+    SetProcessDPIAware(); // Đảm bảo DPI được xử lý đúng
+
     // Tạo và hiển thị cửa sổ overlay để chọn vùng màn hình
     // Hàm này sẽ chặn cho đến khi người dùng chọn xong hoặc hủy bỏ
     CreateOverlayWindow(CROPPED_IMAGE_FILENAME);
