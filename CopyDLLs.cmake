@@ -55,6 +55,7 @@ set(DLLS
     libpsl-5.dll
     libssh2-1.dll
     libssl-3-x64.dll
+    libgomp-1.dll
 )
 
 # Copy DLLs
