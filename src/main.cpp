@@ -30,7 +30,7 @@ int main()
     SetConsoleOutputCP(CP_UTF8); // Đặt mã hóa đầu ra console thành UTF-8
     SetConsoleCP(CP_UTF8);       // Đặt mã hóa đầu vào console thành UTF-8
 
-    _setmode(_fileno(stdout), _O_U16TEXT); // hoặc _O_U8TEXT nếu dùng UTF-8
+    _setmode(_fileno(stdout), _O_U8TEXT); // hoặc _O_U8TEXT nếu dùng UTF-8
 
     // Đặt locale cho console để hỗ trợ Unicode
     std::locale::global(std::locale("")); // hoặc std::wcout.imbue(std::locale(""));
@@ -62,6 +62,7 @@ int main()
             if (msg.wParam == 1) // ID = 1 mà chúng ta đã đăng ký
             {
                 std::wcout << L"Hotkey Ctrl + Alt + D được nhấn!" << std::endl;
+                
                 // Gọi hàm xử lý khi hotkey được nhấn
                 OnHotkeyPressed();
             }

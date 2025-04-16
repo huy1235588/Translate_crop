@@ -4,10 +4,11 @@
 #include "../include/OverlayWindow.h"
 #include "../include/CropScreen.h" // Bao gồm header cho CropAndTranslate
 #include <windows.h>
-#include <windowsx.h> // Cho GET_X_LPARAM, GET_Y_LPARAM
-#include <algorithm>  // Để sử dụng std::min và std::max
-#include <string> // Include for std::wstring
-#include <gdiplus.h>  // Cần thiết nếu sử dụng GDI+ trực tiếp ở đây
+#include <windowsx.h>               // Cho GET_X_LPARAM, GET_Y_LPARAM
+#include <thread>                   // Để sử dụng std::thread nếu cần
+#include <algorithm>                // Để sử dụng std::min và std::max
+#include <string>                   // Include for std::wstring
+#include <gdiplus.h>                // Cần thiết nếu sử dụng GDI+ trực tiếp ở đây
 #pragma comment(lib, "gdiplus.lib") // Liên kết thư viện GDI+
 
 // Biến toàn cục tĩnh
@@ -19,7 +20,8 @@ static std::wstring g_outputFilename; // Biến tĩnh để lưu tên file
 const COLORREF TRANSPARENT_COLOR_KEY = RGB(255, 0, 255); // Fuchsia
 
 // Hàm lấy tọa độ đã chọn (không thay đổi)
-void GetSelectionPoints(POINT* pStart, POINT* pEnd) {
+void GetSelectionPoints(POINT *pStart, POINT *pEnd)
+{
     *pStart = ptStart;
     *pEnd = ptEnd;
 }
@@ -65,10 +67,22 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
             int width = std::abs(ptEnd.x - ptStart.x);
             int height = std::abs(ptEnd.y - ptStart.y);
 
+            // Lưu lại tọa độ trước khi đóng cửa sổ
+            POINT start = ptStart;
+            POINT end = ptEnd;
+            std::wstring filename = g_outputFilename; // Sao chép tên file
+
             DestroyWindow(hwnd); // Đóng trước khi crop
 
-            if (width > 0 && height > 0) {
-                CropScreen(ptStart, ptEnd, g_outputFilename); // Gọi hàm crop với tên file đã lưu
+            if (width > 0 && height > 0)
+            {
+                // Tạo luồng mới để crop ảnh
+                std::thread cropThread([start, end, filename]()
+                {
+                    // Gọi hàm crop với tọa độ đã chọn và tên file
+                    CropScreen(start, end, filename);
+                });
+                cropThread.detach(); // Tách luồng để không chặn
             }
         }
         break;
@@ -93,7 +107,6 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
         HBRUSH hBackgroundBrush = CreateSolidBrush(RGB(0, 0, 0));
         FillRect(hdcMem, &clientRect, hBackgroundBrush);
         DeleteObject(hBackgroundBrush);
-
 
         // 2. Nếu đang chọn, tạo "lỗ thủng" và vẽ viền trắng
         if (isSelecting)
@@ -138,7 +151,6 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
         break;
     }
 
-
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE)
         {
@@ -148,7 +160,7 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
             //     ReleaseCapture();
             //     InvalidateRect(hwnd, NULL, TRUE); // Vẽ lại để xóa hình chữ nhật
             // } else {
-                 DestroyWindow(hwnd);
+            DestroyWindow(hwnd);
             // }
         }
         break;
@@ -169,7 +181,7 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
  * @param outputFilename Tên file để lưu ảnh đã crop
  * @note Hàm này sẽ chặn cho đến khi người dùng chọn xong hoặc hủy bỏ
  */
-void CreateOverlayWindow(const std::wstring& outputFilename)
+void CreateOverlayWindow(const std::wstring &outputFilename)
 {
     // Lưu tên file vào biến tĩnh để OverlayWindowProc có thể truy cập
     g_outputFilename = outputFilename;
@@ -200,10 +212,10 @@ void CreateOverlayWindow(const std::wstring& outputFilename)
         L"Screen Crop Overlay",
         WS_POPUP, // Quan trọng: Không viền, không thanh tiêu đề
         0, 0, screenWidth, screenHeight,
-        NULL, NULL, hInstance, NULL
-    );
+        NULL, NULL, hInstance, NULL);
 
-    if (!hwndOverlay) {
+    if (!hwndOverlay)
+    {
         MessageBox(NULL, L"Không thể tạo cửa sổ overlay!", L"Lỗi", MB_ICONERROR);
         // Gdiplus::GdiplusShutdown(gdiplusToken);
         return;
@@ -216,7 +228,6 @@ void CreateOverlayWindow(const std::wstring& outputFilename)
     // Những pixel có màu TRANSPARENT_COLOR_KEY sẽ trong suốt hoàn toàn.
     // Những pixel khác sẽ có độ mờ là alphaValue.
     SetLayeredWindowAttributes(hwndOverlay, TRANSPARENT_COLOR_KEY, alphaValue, LWA_ALPHA | LWA_COLORKEY);
-
 
     ShowWindow(hwndOverlay, SW_SHOWMAXIMIZED); // Hiển thị toàn màn hình
     UpdateWindow(hwndOverlay);
