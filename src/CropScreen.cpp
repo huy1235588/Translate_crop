@@ -1,6 +1,6 @@
-#include "../include/CropScreen.h" // Consider renaming this include if you rename the header file
+#include "../include/CropScreen.h" // Xem xét đổi tên include nếu bạn đổi tên file header
 #include "../include/ocr.h" // Bao gồm header cho chức năng OCR
-#include "../include/translate.h" // <--- Thêm include này
+#include "../include/translate.h" // Thêm include này
 #include <windows.h>
 #include <gdiplus.h> // Bao gồm header GDI+
 #include <algorithm> // Cho std::min, std::max, std::abs
@@ -28,7 +28,7 @@ public:
     ~GdiplusInitializer()
     {
         if (m_initStatus == Gdiplus::Ok)
-        { // Chỉ shutdown nếu startup thành công
+        { // Chỉ shutdown nếu khởi tạo thành công
             Gdiplus::GdiplusShutdown(m_token);
         }
     }
@@ -131,7 +131,7 @@ public:
 int GetEncoderClsid(const WCHAR *format, CLSID *pClsid)
 {
     UINT num = 0;  // Số lượng bộ mã hóa
-    UINT size = 0; // Kích thước buffer cần thiết
+    UINT size = 0; // Kích thước bộ nhớ cần thiết
 
     Gdiplus::Status status = Gdiplus::GetImageEncodersSize(&num, &size);
     if (status != Gdiplus::Ok || size == 0)
@@ -166,144 +166,187 @@ int GetEncoderClsid(const WCHAR *format, CLSID *pClsid)
     return -1; // Không tìm thấy bộ mã hóa phù hợp
 }
 
+// Hàm trợ giúp để lấy chuỗi lỗi của GDI+ (tùy chọn nhưng hữu ích)
+std::string GdiplusStatusToString(Gdiplus::Status status) {
+    switch (status) {
+        case Gdiplus::Ok: return "Ok";
+        case Gdiplus::GenericError: return "GenericError";
+        case Gdiplus::InvalidParameter: return "InvalidParameter";
+        case Gdiplus::OutOfMemory: return "OutOfMemory";
+        case Gdiplus::ObjectBusy: return "ObjectBusy";
+        case Gdiplus::InsufficientBuffer: return "InsufficientBuffer";
+        case Gdiplus::NotImplemented: return "NotImplemented";
+        case Gdiplus::Win32Error: return "Win32Error";
+        case Gdiplus::WrongState: return "WrongState";
+        case Gdiplus::Aborted: return "Aborted";
+        case Gdiplus::FileNotFound: return "FileNotFound";
+        case Gdiplus::ValueOverflow: return "ValueOverflow";
+        case Gdiplus::AccessDenied: return "AccessDenied";
+        case Gdiplus::UnknownImageFormat: return "UnknownImageFormat";
+        case Gdiplus::FontFamilyNotFound: return "FontFamilyNotFound";
+        case Gdiplus::FontStyleNotFound: return "FontStyleNotFound";
+        case Gdiplus::NotTrueTypeFont: return "NotTrueTypeFont";
+        case Gdiplus::UnsupportedGdiplusVersion: return "UnsupportedGdiplusVersion";
+        case Gdiplus::GdiplusNotInitialized: return "GdiplusNotInitialized";
+        case Gdiplus::PropertyNotFound: return "PropertyNotFound";
+        case Gdiplus::PropertyNotSupported: return "PropertyNotSupported";
+        #if (GDIPVER >= 0x0110)
+        case Gdiplus::ProfileNotFound: return "ProfileNotFound";
+        #endif
+        default: return "UnknownStatus";
+    }
+}
+
 // --- Chức năng chính ---
 
 /**
- * @brief Chụp một vùng màn hình được xác định bởi ptStart và ptEnd, sau đó lưu thành file PNG.
- * @param ptStart Điểm bắt đầu (hoặc một góc của hình chữ nhật).
- * @param ptEnd Điểm kết thúc (hoặc góc đối diện của hình chữ nhật).
- * @param outputFilePath Đường dẫn để lưu file ảnh PNG đã crop.
+ * @brief Chụp một vùng màn hình, lưu thành file PNG, thực hiện OCR và dịch.
+ * @param ptStart Điểm bắt đầu.
+ * @param ptEnd Điểm kết thúc.
+ * @param outputFilePath Đường dẫn để lưu file ảnh PNG.
+ * @return true nếu tất cả các bước (cắt, OCR, dịch) thành công, false nếu có lỗi.
  */
-void CropScreen(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath)
+bool CropScreenAndProcess(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath) // Đổi tên cho rõ ràng
 {
-    // Khởi tạo GDI+ một lần duy nhất cho hàm này bằng RAII
+    // Khởi tạo GDI+
     GdiplusInitializer gdiplusInit;
     if (!gdiplusInit.IsInitialized())
     {
         std::wcerr << L"Lỗi: Không thể khởi tạo GDI+." << std::endl;
-        // Consider throwing an exception or returning an error code instead of just printing
-        return;
+        MessageBoxW(NULL, L"Không thể khởi tạo GDI+.", L"Lỗi Hệ Thống", MB_ICONERROR | MB_OK);
+        return false;
     }
 
-    bool success = false; // Biến để theo dõi trạng thái thành công
+    bool cropSuccess = false;
+    HDC hScreenDC_raw = NULL; // Handle thô để sử dụng trong RAII
+    HDC hMemoryDC_raw = NULL;
+    HBITMAP hBitmap_raw = NULL;
+    HBITMAP hOldBitmap = NULL; // Lưu lại bitmap ban đầu trong Memory DC
 
     try
     {
-        // 1. Xác định tọa độ và kích thước vùng crop (chuẩn hóa)
+        // 1. Xác định tọa độ và kích thước vùng cắt
         int x = std::min(ptStart.x, ptEnd.x);
         int y = std::min(ptStart.y, ptEnd.y);
         int width = std::abs(ptEnd.x - ptStart.x);
         int height = std::abs(ptEnd.y - ptStart.y);
 
-        // Kiểm tra kích thước hợp lệ
         if (width <= 0 || height <= 0)
         {
-            throw std::runtime_error("Kích thước vùng crop không hợp lệ.");
+            throw std::runtime_error("Kích thước vùng cắt không hợp lệ.");
         }
 
-        // 2. Lấy Device Context (DC) của toàn màn hình
-        DCWrapper hScreenDC((HWND)NULL); // Sử dụng RAII
-        if (!hScreenDC.IsValid())
+        // 2. Lấy Screen DC
+        DCWrapper screenDCWrapper((HWND)NULL);
+        hScreenDC_raw = screenDCWrapper; // Lấy handle thô để sử dụng
+        if (!screenDCWrapper.IsValid())
         {
             throw std::runtime_error("Không thể lấy DC màn hình.");
         }
 
-        // 3. Tạo một Memory DC tương thích với Screen DC
-        DCWrapper hMemoryDC(static_cast<HDC>(hScreenDC)); // Sử dụng RAII
-        if (!hMemoryDC.IsValid())
+        // 3. Tạo Memory DC
+        DCWrapper memoryDCWrapper(hScreenDC_raw);
+        hMemoryDC_raw = memoryDCWrapper; // Lấy handle thô
+        if (!memoryDCWrapper.IsValid())
         {
             throw std::runtime_error("Không thể tạo Memory DC.");
         }
 
-        // 4. Tạo một Bitmap tương thích với Screen DC để chứa ảnh crop
-        GdiObjectWrapper<HBITMAP> hBitmapWrapper; // Sử dụng RAII
-        hBitmapWrapper = CreateCompatibleBitmap(hScreenDC, width, height);
-        if (!hBitmapWrapper.IsValid())
+        // 4. Tạo Bitmap tương thích
+        GdiObjectWrapper<HBITMAP> bitmapWrapper; // RAII cho bitmap mới
+        hBitmap_raw = CreateCompatibleBitmap(hScreenDC_raw, width, height);
+        if (!hBitmap_raw)
         {
             throw std::runtime_error("Không thể tạo Bitmap.");
         }
+        bitmapWrapper = hBitmap_raw; // Gán cho wrapper để quản lý RAII
 
-        // 5. Chọn Bitmap vào Memory DC và lưu lại Bitmap cũ
-        // An toàn hơn nếu quản lý bitmap cũ bằng RAII, hoặc đảm bảo luôn gọi SelectObject trước khi trả về hoặc ném ngoại lệ
-        HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmapWrapper);
-        // Việc sử dụng wrapper RAII để chọn/hủy chọn các đối tượng GDI có thể mang lại lợi ích ở đây
+        // 5. Chọn Bitmap mới vào Memory DC
+        hOldBitmap = (HBITMAP)SelectObject(hMemoryDC_raw, hBitmap_raw);
+        if (!hOldBitmap || hOldBitmap == HGDI_ERROR) {
+             throw std::runtime_error("Không thể chọn Bitmap vào Memory DC.");
+        }
 
-        // 6. Sao chép (BitBlt) dữ liệu hình ảnh từ Screen DC sang Memory DC
-        if (!BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, x, y, SRCCOPY))
+        // Cấu trúc RAII để khôi phục bitmap cũ
+        struct OldBitmapRestorer {
+            HDC dc; HBITMAP oldBmp; bool restore;
+            OldBitmapRestorer(HDC hdc, HBITMAP hBmp) : dc(hdc), oldBmp(hBmp), restore(true) {}
+            ~OldBitmapRestorer() { if (restore && dc && oldBmp) SelectObject(dc, oldBmp); }
+        } oldBitmapRestorer(hMemoryDC_raw, hOldBitmap);
+
+
+        // 6. Sao chép ảnh (BitBlt)
+        if (!BitBlt(hMemoryDC_raw, 0, 0, width, height, hScreenDC_raw, x, y, SRCCOPY))
         {
-            SelectObject(hMemoryDC, hOldBitmap); // Khôi phục bitmap cũ trước khi ném ngoại lệ
             throw std::runtime_error("Lỗi sao chép hình ảnh (BitBlt).");
         }
 
-        // 7. Tạo đối tượng Gdiplus::Bitmap từ HBITMAP
-        // Sử dụng unique_ptr để quản lý đối tượng Bitmap
-        std::unique_ptr<Gdiplus::Bitmap> bitmap(Gdiplus::Bitmap::FromHBITMAP(hBitmapWrapper, NULL));
+        // 7. Tạo Gdiplus::Bitmap từ HBITMAP
+        std::unique_ptr<Gdiplus::Bitmap> bitmap(Gdiplus::Bitmap::FromHBITMAP(hBitmap_raw, NULL));
         if (!bitmap)
         {
-            SelectObject(hMemoryDC, hOldBitmap); // Khôi phục bitmap cũ
-            // Destructor của hBitmapWrapper sẽ xóa HBITMAP, điều này là đúng ở đây
+            // HBITMAP vẫn được quản lý bởi bitmapWrapper
             throw std::runtime_error("Không thể tạo Gdiplus::Bitmap từ HBITMAP.");
         }
-        // Ngắt kết nối HBITMAP từ wrapper vì Gdiplus::Bitmap hiện sở hữu nó (hoặc chia sẻ quyền sở hữu tuỳ thuộc vào cài đặt)
-        // Tuy nhiên, theo tài liệu, Gdiplus::Bitmap::FromHBITMAP KHÔNG nắm quyền sở hữu.
-        // Vì vậy, HBITMAP cần được xóa sau khi Gdiplus::Bitmap đã sử dụng xong.
-        // Wrapper RAII hiện tại xử lý điều này đúng cách khi hBitmapWrapper ra khỏi phạm vi sau khi bitmap được sử dụng.
 
         // 8. Lấy CLSID của bộ mã hóa PNG
         CLSID pngClsid;
         if (GetEncoderClsid(L"image/png", &pngClsid) < 0)
         {
-            SelectObject(hMemoryDC, hOldBitmap); // Khôi phục bitmap cũ
             throw std::runtime_error("Không tìm thấy bộ mã hóa PNG.");
         }
 
-        // 9. Lưu Bitmap thành file PNG using the provided path
+        // 9. Lưu Bitmap thành file PNG
         Gdiplus::Status status = bitmap->Save(outputFilePath.c_str(), &pngClsid, NULL);
         if (status != Gdiplus::Ok)
         {
-            SelectObject(hMemoryDC, hOldBitmap); // Khôi phục bitmap cũ
-            // Map Gdiplus::Status to a more descriptive error message if possible
-            throw std::runtime_error("Không thể lưu hình ảnh PNG.");
+            std::string errorMsg = "Không thể lưu hình ảnh PNG. Lỗi GDI+: " + GdiplusStatusToString(status);
+            throw std::runtime_error(errorMsg);
         }
 
-        std::wcout << L"Đã lưu ảnh crop vào: " << outputFilePath << std::endl;
+        std::wcout << L"Đã lưu ảnh cắt vào: " << outputFilePath << std::endl;
+        cropSuccess = true; // Cắt và lưu ảnh thành công
 
-        success = true; // Đánh dấu thành công nếu không có ngoại lệ nào xảy ra
+        // Bitmap cũ được khôi phục tự động bởi hàm hủy của oldBitmapRestorer
+        // DC và Bitmap mới được giải phóng/xóa bởi các wrapper RAII tương ứng
+        oldBitmapRestorer.restore = false; // Ngăn khôi phục lại nếu thoát bình thường
+        SelectObject(hMemoryDC_raw, hOldBitmap); // Khôi phục ngay sau khi sử dụng
 
-        // 10. Khôi phục Bitmap cũ vào Memory DC
-        SelectObject(hMemoryDC, hOldBitmap);
-        // hOldBitmap is now selected back into the DC. It should not be deleted by us.
-
-        // Các tài nguyên DC và Bitmap (hBitmapWrapper) sẽ tự động được giải phóng bởi các đối tượng RAII
-        // GDI+ sẽ tự động được shutdown bởi GdiplusInitializer
     }
     catch (const std::exception &e)
     {
-        // Ghi lỗi ra standard error
-        std::wcerr << L"Lỗi trong CropScreen: " << e.what() << std::endl;
-        // Consider logging instead of or in addition to MessageBox
-        MessageBoxA(NULL, e.what(), "Lỗi Crop Ảnh", MB_ICONERROR | MB_OK);
+        std::wcerr << L"Lỗi trong quá trình cắt ảnh: " << e.what() << std::endl;
+        MessageBoxA(NULL, e.what(), "Lỗi Cắt Ảnh", MB_ICONERROR | MB_OK);
+        // Đảm bảo dọn dẹp nếu phần nào đã thành công trước khi gặp lỗi
+         if (hMemoryDC_raw && hOldBitmap) {
+             SelectObject(hMemoryDC_raw, hOldBitmap); // Cố gắng khôi phục trong trường hợp lỗi
+         }
+        return false; // Báo lỗi
     }
     catch (...)
     {
-        // Bắt các loại ngoại lệ khác không xác định
-        std::wcerr << L"Lỗi không xác định trong CropScreen." << std::endl;
-        MessageBoxA(NULL, "Lỗi không xác định xảy ra khi crop ảnh.", "Lỗi Crop Ảnh", MB_ICONERROR | MB_OK);
+        std::wcerr << L"Lỗi không xác định trong quá trình cắt ảnh." << std::endl;
+        MessageBoxA(NULL, "Lỗi không xác định xảy ra khi cắt ảnh.", "Lỗi Cắt Ảnh", MB_ICONERROR | MB_OK);
+         if (hMemoryDC_raw && hOldBitmap) {
+             SelectObject(hMemoryDC_raw, hOldBitmap); // Cố gắng khôi phục trong trường hợp lỗi
+         }
+        return false; // Báo lỗi
     }
 
-    // Nếu crop ảnh thành công, đọc văn bản và dịch
-    if (success)
+    // --- OCR và Dịch ---
+    // Phần này chỉ thực hiện nếu cropSuccess là true. Xem xét đưa logic này ra ngoài hàm nếu cần.
+    if (cropSuccess)
     {
         std::wstring extractedText;
         std::wstring translatedText;
         bool ocrOk = false;
-        bool translateOk = false;
+        // bool translateOk = false; // Hiện không sử dụng
 
         // Bước OCR
         try
         {
             std::wcout << L"Đang đọc chữ từ ảnh..." << std::endl;
-            extractedText = ReadTextFromImage(outputFilePath); // Gọi hàm OCR
+            extractedText = ReadTextFromImage(outputFilePath);
 
             if (!extractedText.empty())
             {
@@ -315,60 +358,76 @@ void CropScreen(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath)
             else
             {
                 std::wcout << L"Không nhận dạng được văn bản hoặc có lỗi xảy ra trong quá trình OCR." << std::endl;
-                MessageBoxW(NULL, L"Không nhận dạng được văn bản từ ảnh.", L"Lỗi OCR", MB_ICONWARNING | MB_OK);
+                MessageBoxW(NULL, L"Không nhận dạng được văn bản từ ảnh.", L"Thông báo OCR", MB_ICONWARNING | MB_OK);
+                // Xem xét đây có phải lỗi nghiêm trọng hay không.
+                // return false; // Có thể dừng nếu OCR thất bại
             }
         }
         catch (const std::exception &ocr_ex)
         {
             std::wcerr << L"Lỗi trong quá trình OCR: " << ocr_ex.what() << std::endl;
             MessageBoxA(NULL, ocr_ex.what(), "Lỗi OCR", MB_ICONERROR | MB_OK);
+            return false; // Lỗi OCR được xem là nghiêm trọng
         }
         catch (...)
         {
             std::wcerr << L"Lỗi không xác định trong quá trình OCR." << std::endl;
             MessageBoxA(NULL, "Lỗi không xác định xảy ra khi OCR.", "Lỗi OCR", MB_ICONERROR | MB_OK);
+            return false; // Lỗi OCR được xem là nghiêm trọng
         }
 
-        // Bước Dịch (chỉ thực hiện nếu OCR thành công và có văn bản)
+        // Bước Dịch
         if (ocrOk)
         {
             try
             {
                 std::wcout << L"Đang dịch văn bản (EN -> VI)..." << std::endl;
-                // Gọi hàm dịch từ tiếng Anh ("en") sang tiếng Việt ("vi")
-                translatedText = TranslateText(extractedText, "en", "vi");
+                translatedText = TranslateText(extractedText, "en", "vi"); // Giả sử TranslateText xử lý lỗi nội bộ hoặc ném ngoại lệ
 
                 if (!translatedText.empty())
                 {
-                     // Kiểm tra xem có phải là thông báo lỗi placeholder không (tùy vào cách bạn triển khai TranslateText)
-                    if (translatedText.find(L"Chức năng dịch chưa được cài đặt") == std::wstring::npos) {
+                     if (translatedText.find(L"Chức năng dịch chưa được cài đặt") == std::wstring::npos) {
                         std::wcout << L"Văn bản đã dịch:\n======================\n"
                                 << translatedText
                                 << L"\n======================" << std::endl;
-                        translateOk = true;
-                    } else {
-                         std::wcout << L"Dịch thuật chưa được cấu hình." << std::endl;
-                    }
-
-                    // Hiển thị kết quả dịch (hoặc thông báo lỗi placeholder)
-                    MessageBoxW(NULL, translatedText.c_str(), L"Kết quả dịch (EN -> VI)", MB_OK);
+                        // translateOk = true; // Thiết lập nếu cần ở nơi khác
+                        MessageBoxW(NULL, translatedText.c_str(), L"Kết quả dịch (EN -> VI)", MB_OK);
+                     } else {
+                         std::wcout << L"Dịch thuật chưa được cấu hình hoặc trả về thông báo." << std::endl;
+                         MessageBoxW(NULL, translatedText.c_str(), L"Thông báo Dịch Thuật", MB_ICONINFORMATION | MB_OK);
+                         // Xem xét đây có phải lỗi hay không
+                         // return false;
+                     }
                 }
                 else
                 {
                     std::wcout << L"Dịch thuật thất bại hoặc trả về chuỗi rỗng." << std::endl;
                     MessageBoxW(NULL, L"Không thể dịch văn bản.", L"Lỗi Dịch Thuật", MB_ICONWARNING | MB_OK);
+                    // Xem xét đây có phải lỗi hay không
+                    // return false;
                 }
             }
             catch (const std::exception &trans_ex)
             {
                 std::wcerr << L"Lỗi trong quá trình dịch: " << trans_ex.what() << std::endl;
                 MessageBoxA(NULL, trans_ex.what(), "Lỗi Dịch Thuật", MB_ICONERROR | MB_OK);
+                return false; // Lỗi dịch được xem là nghiêm trọng
             }
             catch (...)
             {
                 std::wcerr << L"Lỗi không xác định trong quá trình dịch." << std::endl;
                 MessageBoxA(NULL, "Lỗi không xác định xảy ra khi dịch.", "Lỗi Dịch Thuật", MB_ICONERROR | MB_OK);
+                return false; // Lỗi dịch được xem là nghiêm trọng
             }
         }
+         else {
+             // OCR thất bại nhưng không ném ngoại lệ (ví dụ: không có văn bản)
+             return false; // Hoặc true tuỳ mong muốn khi OCR không tìm thấy văn bản
+         }
+    } else {
+        // Cắt ảnh thất bại
+        return false;
     }
+
+    return true; // Tất cả các bước thực hiện thành công
 }

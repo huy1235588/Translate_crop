@@ -14,7 +14,6 @@ set(SOURCES
     src/ocr.cpp
     src/translate.cpp
     utils/string_utils.cpp
-    utils/getApiKey.cpp
 )
 
 # Danh sách header files (để thêm vào IDE)
@@ -24,7 +23,6 @@ set(HEADERS
     include/ocr.h
     include/translate.h
     include/string_utils.h
-    include/getApiKey.h
 )
 
 # Tạo executable
@@ -41,7 +39,7 @@ target_include_directories(${PROJECT_NAME}
 
 # Thêm thư viện GDI+ (chỉ trên Windows)
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE gdiplus tesseract leptonica)
+    target_link_libraries(${PROJECT_NAME} PRIVATE gdiplus tesseract leptonica curl)
 endif()
 
 # Tổ chức thư mục cho các file build

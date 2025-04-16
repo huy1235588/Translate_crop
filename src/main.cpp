@@ -35,11 +35,11 @@ int main()
     // Đặt locale cho console để hỗ trợ Unicode
     std::locale::global(std::locale("")); // hoặc std::wcout.imbue(std::locale(""));
 
-    // Đăng ký hotkey toàn cục: Ctrl + Alt + D (0x44 là mã VK cho phím 'D')
+    // Đăng ký hotkey toàn cục: Alt + Shift + D (0x44 là mã VK cho phím 'D')
     if (!RegisterHotKey(
             NULL,                  // Sử dụng handle của luồng hiện tại
             1,                     // ID duy nhất cho hotkey này
-            MOD_CONTROL | MOD_ALT, // Tổ hợp phím Ctrl + Alt
+            MOD_ALT | MOD_SHIFT,   // Tổ hợp phím Alt + Shift
             0x44))                 // Mã phím ảo cho 'D'
     {
         // Ghi lỗi ra console nếu đăng ký thất bại
@@ -47,7 +47,7 @@ int main()
         return 1; // Thoát chương trình với mã lỗi
     }
 
-    std::wcout << L"Hotkey Ctrl + Alt + D đã được đăng ký. Nhấn tổ hợp phím để chụp màn hình." << std::endl;
+    std::wcout << L"Hotkey Alt + Shift + D đã được đăng ký. Nhấn tổ hợp phím để chụp màn hình." << std::endl;
 
     // Vòng lặp xử lý thông điệp chính của ứng dụng
     MSG msg = {0};
@@ -61,7 +61,7 @@ int main()
             // Kiểm tra ID của hotkey (đảm bảo đúng là hotkey chúng ta đã đăng ký)
             if (msg.wParam == 1) // ID = 1 mà chúng ta đã đăng ký
             {
-                std::wcout << L"Hotkey Ctrl + Alt + D được nhấn!" << std::endl;
+                std::wcout << L"Hotkey Alt + Shift + D được nhấn!" << std::endl;
                 
                 // Gọi hàm xử lý khi hotkey được nhấn
                 OnHotkeyPressed();

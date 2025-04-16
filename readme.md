@@ -2,11 +2,11 @@
 
 ## Mô tả
 
-Đây là một ứng dụng Windows cho phép người dùng chụp một vùng màn hình được chọn bằng phím tắt (`Ctrl + Alt + D`), thực hiện Nhận dạng ký tự quang học (OCR) trên ảnh đã chụp bằng Tesseract và hiển thị văn bản được nhận dạng.
+Đây là một ứng dụng Windows cho phép người dùng chụp một vùng màn hình được chọn bằng phím tắt (`Alt + Shift + D`), thực hiện Nhận dạng ký tự quang học (OCR) trên ảnh đã chụp bằng Tesseract và hiển thị văn bản được nhận dạng.
 
 ## Tính năng
 
-*   Phím tắt toàn cục (`Ctrl + Alt + D`) để bắt đầu chụp màn hình.
+*   Phím tắt toàn cục (`Alt + Shift + D`) để bắt đầu chụp màn hình.
 *   Lớp phủ trong suốt để chọn vùng màn hình.
 *   Chụp vùng đã chọn và lưu dưới dạng `captured_region.png`.
 *   Thực hiện OCR trên ảnh đã chụp bằng Tesseract (hỗ trợ tiếng Việt và tiếng Anh).
@@ -55,7 +55,7 @@
 ## Usage (Sử dụng)
 
 1.  Chạy file thực thi `TranslateCrop.exe` từ thư mục `build`.
-2.  Nhấn tổ hợp phím `Ctrl + Alt + D`.
+2.  Nhấn tổ hợp phím `Alt + Shift + D`.
 3.  Một lớp phủ sẽ xuất hiện. Nhấp và kéo chuột để chọn một vùng trên màn hình.
 4.  Thả nút chuột.
 5.  Vùng đã chọn sẽ được lưu dưới dạng `captured_region.png` trong thư mục chứa file thực thi.

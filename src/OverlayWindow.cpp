@@ -80,7 +80,7 @@ LRESULT CALLBACK OverlayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
                 std::thread cropThread([start, end, filename]()
                 {
                     // Gọi hàm crop với tọa độ đã chọn và tên file
-                    CropScreen(start, end, filename);
+                    int result = CropScreenAndProcess(start, end, filename);
                 });
                 cropThread.detach(); // Tách luồng để không chặn
             }
