@@ -73,3 +73,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tessdata")
             "${DIST_DIR}/tessdata"
     )
 endif()
+
+# Copy file config.ini nếu tồn tại
+if(EXISTS "${CMAKE_SOURCE_DIR}/config.ini")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/config.ini"
+            "${DIST_DIR}/config.ini"
+    )
+endif()

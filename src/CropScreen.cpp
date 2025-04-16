@@ -1,5 +1,6 @@
 #include "../include/CropScreen.h" // Consider renaming this include if you rename the header file
 #include "../include/ocr.h" // Bao gồm header cho chức năng OCR
+#include "../include/translate.h" // <--- Thêm include này
 #include <windows.h>
 #include <gdiplus.h> // Bao gồm header GDI+
 #include <algorithm> // Cho std::min, std::max, std::abs
@@ -290,26 +291,30 @@ void CropScreen(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath)
         MessageBoxA(NULL, "Lỗi không xác định xảy ra khi crop ảnh.", "Lỗi Crop Ảnh", MB_ICONERROR | MB_OK);
     }
 
-    // Nếu không có lỗi, đọc văn bản từ ảnh đã crop
+    // Nếu crop ảnh thành công, đọc văn bản và dịch
     if (success)
     {
+        std::wstring extractedText;
+        std::wstring translatedText;
+        bool ocrOk = false;
+        bool translateOk = false;
+
+        // Bước OCR
         try
         {
             std::wcout << L"Đang đọc chữ từ ảnh..." << std::endl;
-            std::wstring extractedText = ReadTextFromImage(outputFilePath); // Call OCR function
+            extractedText = ReadTextFromImage(outputFilePath); // Gọi hàm OCR
 
             if (!extractedText.empty())
             {
                 std::wcout << L"Văn bản được nhận dạng:\n======================\n"
                            << extractedText
                            << L"\n======================" << std::endl;
-                // Optionally display in a message box (consider large text)
-                MessageBoxW(NULL, extractedText.c_str(), L"Văn bản nhận dạng được", MB_OK);
+                ocrOk = true;
             }
             else
             {
                 std::wcout << L"Không nhận dạng được văn bản hoặc có lỗi xảy ra trong quá trình OCR." << std::endl;
-                // Optionally show a message box indicating OCR failure
                 MessageBoxW(NULL, L"Không nhận dạng được văn bản từ ảnh.", L"Lỗi OCR", MB_ICONWARNING | MB_OK);
             }
         }
@@ -322,6 +327,48 @@ void CropScreen(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath)
         {
             std::wcerr << L"Lỗi không xác định trong quá trình OCR." << std::endl;
             MessageBoxA(NULL, "Lỗi không xác định xảy ra khi OCR.", "Lỗi OCR", MB_ICONERROR | MB_OK);
+        }
+
+        // Bước Dịch (chỉ thực hiện nếu OCR thành công và có văn bản)
+        if (ocrOk)
+        {
+            try
+            {
+                std::wcout << L"Đang dịch văn bản (EN -> VI)..." << std::endl;
+                // Gọi hàm dịch từ tiếng Anh ("en") sang tiếng Việt ("vi")
+                translatedText = TranslateText(extractedText, "en", "vi");
+
+                if (!translatedText.empty())
+                {
+                     // Kiểm tra xem có phải là thông báo lỗi placeholder không (tùy vào cách bạn triển khai TranslateText)
+                    if (translatedText.find(L"Chức năng dịch chưa được cài đặt") == std::wstring::npos) {
+                        std::wcout << L"Văn bản đã dịch:\n======================\n"
+                                << translatedText
+                                << L"\n======================" << std::endl;
+                        translateOk = true;
+                    } else {
+                         std::wcout << L"Dịch thuật chưa được cấu hình." << std::endl;
+                    }
+
+                    // Hiển thị kết quả dịch (hoặc thông báo lỗi placeholder)
+                    MessageBoxW(NULL, translatedText.c_str(), L"Kết quả dịch (EN -> VI)", MB_OK);
+                }
+                else
+                {
+                    std::wcout << L"Dịch thuật thất bại hoặc trả về chuỗi rỗng." << std::endl;
+                    MessageBoxW(NULL, L"Không thể dịch văn bản.", L"Lỗi Dịch Thuật", MB_ICONWARNING | MB_OK);
+                }
+            }
+            catch (const std::exception &trans_ex)
+            {
+                std::wcerr << L"Lỗi trong quá trình dịch: " << trans_ex.what() << std::endl;
+                MessageBoxA(NULL, trans_ex.what(), "Lỗi Dịch Thuật", MB_ICONERROR | MB_OK);
+            }
+            catch (...)
+            {
+                std::wcerr << L"Lỗi không xác định trong quá trình dịch." << std::endl;
+                MessageBoxA(NULL, "Lỗi không xác định xảy ra khi dịch.", "Lỗi Dịch Thuật", MB_ICONERROR | MB_OK);
+            }
         }
     }
 }

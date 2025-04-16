@@ -12,6 +12,9 @@ set(SOURCES
     src/OverlayWindow.cpp
     src/CropScreen.cpp
     src/ocr.cpp
+    src/translate.cpp
+    utils/string_utils.cpp
+    utils/getApiKey.cpp
 )
 
 # Danh sách header files (để thêm vào IDE)
@@ -19,6 +22,9 @@ set(HEADERS
     include/OverlayWindow.h
     include/CropScreen.h
     include/ocr.h
+    include/translate.h
+    include/string_utils.h
+    include/getApiKey.h
 )
 
 # Tạo executable
@@ -40,7 +46,7 @@ endif()
 
 # Tổ chức thư mục cho các file build
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include FILES ${HEADERS})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src FILES ${SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
 
 
 # Include script tự động hoá
