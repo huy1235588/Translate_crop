@@ -1,5 +1,7 @@
 #include <iostream>
 #include <windows.h>
+#include <locale>    // Để sử dụng std::locale
+#include <fcntl.h>   // Để sử dụng _setmode
 #include "../include/OverlayWindow.h"    // Bao gồm header cho cửa sổ overlay
 #include "../include/CropScreen.h" // Bao gồm header cho chức năng crop và dịch (nếu cần gọi từ đây)
 // #include "../include/ocr.h"              // Bao gồm header cho chức năng OCR (nếu cần gọi từ đây)
@@ -28,6 +30,11 @@ int main()
     SetConsoleOutputCP(CP_UTF8); // Đặt mã hóa đầu ra console thành UTF-8
     SetConsoleCP(CP_UTF8);       // Đặt mã hóa đầu vào console thành UTF-8
 
+    _setmode(_fileno(stdout), _O_U16TEXT); // hoặc _O_U8TEXT nếu dùng UTF-8
+
+    // Đặt locale cho console để hỗ trợ Unicode
+    std::locale::global(std::locale("")); // hoặc std::wcout.imbue(std::locale(""));
+
     // Đăng ký hotkey toàn cục: Ctrl + Alt + D (0x44 là mã VK cho phím 'D')
     if (!RegisterHotKey(
             NULL,                  // Sử dụng handle của luồng hiện tại
@@ -40,7 +47,7 @@ int main()
         return 1; // Thoát chương trình với mã lỗi
     }
 
-    std::cout << "Hotkey Ctrl + Alt + D đã được đăng ký. Nhấn tổ hợp phím để chụp màn hình." << std::endl;
+    std::wcout << L"Hotkey Ctrl + Alt + D đã được đăng ký. Nhấn tổ hợp phím để chụp màn hình." << std::endl;
 
     // Vòng lặp xử lý thông điệp chính của ứng dụng
     MSG msg = {0};
@@ -54,7 +61,7 @@ int main()
             // Kiểm tra ID của hotkey (đảm bảo đúng là hotkey chúng ta đã đăng ký)
             if (msg.wParam == 1) // ID = 1 mà chúng ta đã đăng ký
             {
-                std::cout << "Hotkey Ctrl + Alt + D được nhấn!" << std::endl;
+                std::wcout << L"Hotkey Ctrl + Alt + D được nhấn!" << std::endl;
                 // Gọi hàm xử lý khi hotkey được nhấn
                 OnHotkeyPressed();
             }

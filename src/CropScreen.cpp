@@ -295,14 +295,14 @@ void CropScreen(POINT ptStart, POINT ptEnd, const std::wstring &outputFilePath)
     {
         try
         {
-            std::cout << "Đang đọc chữ từ ảnh..." << std::endl;
+            std::wcout << L"Đang đọc chữ từ ảnh..." << std::endl;
             std::wstring extractedText = ReadTextFromImage(outputFilePath); // Call OCR function
 
             if (!extractedText.empty())
             {
-                std::wcout << L"Văn bản được nhận dạng:\n--------------------\n"
+                std::wcout << L"Văn bản được nhận dạng:\n======================\n"
                            << extractedText
-                           << L"\n--------------------" << std::endl;
+                           << L"\n======================" << std::endl;
                 // Optionally display in a message box (consider large text)
                 MessageBoxW(NULL, extractedText.c_str(), L"Văn bản nhận dạng được", MB_OK);
             }

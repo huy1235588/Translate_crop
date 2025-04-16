@@ -108,11 +108,6 @@ std::wstring ReadTextFromImage(const std::wstring &imagePath)
     delete[] outText;   // Xóa bộ đệm văn bản được cấp phát bởi Tesseract
     pixDestroy(&image); // Dọn dẹp hình ảnh của Leptonica
 
-    std::cout << "=======================\n"
-        << "Văn bản đã trích xuất:\n"
-        << "=======================\n"
-        << WstringToString(extractedText) << std::endl; // Chuyển đổi sang std::string để in ra console
-
     // Trả về văn bản đã trích xuất
     return extractedText;
 }
